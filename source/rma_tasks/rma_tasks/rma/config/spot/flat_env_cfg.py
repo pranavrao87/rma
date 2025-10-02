@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import isaaclab.sim as sim_utils
+import isaaclab.terrains as terrain_gen
 from isaaclab.envs import ViewerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -11,6 +12,8 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg, SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
@@ -25,15 +28,8 @@ from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import Lo
 ##
 from isaaclab_assets.robots.spot import SPOT_CFG  # isort: skip
 
-
 @configclass
-class SceneEntityConfig:
-
-    """Scene entity configuration."""
-    
-    # switch robot to Spot-d
-    robot = SPOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-
+class MySceneCfg(InteractiveSceneCfg):
     # terrain
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
@@ -54,24 +50,38 @@ class SceneEntityConfig:
         ),
         debug_vis=True,
     )
+    
+    robot = SPOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-    # no height scan
-    height_scanner = None
-
+    # added height scanner
+    height_scanner = RayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/body",
+        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+        attach_yaw_only=True,
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
+        debug_vis=False, # visualize the raycast. Turn off for speed
+        mesh_prim_paths=["/World/ground"],
+    )
+    contact_forces = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/.*",
+        history_length=3,
+        track_air_time=True,
+        force_threshold=10.0,
+        debug_vis=False
+    )
 
 
 @configclass
 class SpotActionsCfg:
     """Action specifications for the MDP."""
-    # Defines actions that the agent can take --> can move any joing of the asset aka robot aka spot
+
     joint_pos = mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.2, use_default_offset=True)
 
 
 @configclass
 class SpotCommandsCfg:
     """Command specifications for the MDP."""
-    # commands given to the agent to follow (some velocity to match) and agent tries to match it and target state
-    # is chosen randomly from a uniform distribution specified below
+
     base_velocity = mdp.UniformVelocityCommandCfg(
         asset_name="robot",
         resampling_time_range=(10.0, 10.0),
@@ -85,10 +95,28 @@ class SpotCommandsCfg:
     )
 
 
-# defines what the base policy can see (added noise as well) -> "state vector"
 @configclass
 class SpotObservationsCfg:
     """Observation specifications for the MDP."""
+    
+    @configclass
+    class PrivCfg(ObsGroup):
+        height_scan = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+            clip=(-1.0,1.0)
+        )
+        foot_force = ObsTerm(
+            func=rma_mdp.contact_sensor,
+            params = {"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot")},
+        )
+        ground_friction = ObsTerm(
+            func=rma_mdp.contact_friction,
+            params = {"asset_cfg": SceneEntityCfg("robot", body_names=".*_foot")},
+        )
+        def __post_init__(self):
+            self.enable_corruption = True
+            self.concatenate_terms = True
 
     @configclass
     class PolicyCfg(ObsGroup):
@@ -120,10 +148,10 @@ class SpotObservationsCfg:
             self.concatenate_terms = True
 
     # observation groups
+    priv_obs: PrivCfg=PrivCfg()
     policy: PolicyCfg = PolicyCfg()
 
 
-# randomization of configuration (mass, friction, join resets, etc.) --> ensures policy is robust
 @configclass
 class SpotEventCfg:
     """Configuration for randomization."""
@@ -201,8 +229,6 @@ class SpotEventCfg:
     )
 
 
-#TODO: UPDATE REWARD FUNCTIONS TO MATCH PAPER
-# defines reward function, rewarding good behavior and penalizes bad behavior
 @configclass
 class SpotRewardsCfg:
     # -- task
@@ -297,12 +323,11 @@ class SpotRewardsCfg:
     )
 
 
-# termination configuraitons, "when does simul terminate for an agent?"
 @configclass
 class SpotTerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    time_out = DoneTerm(func=mdp.time_out, time_out=True) # time out ensures RL policy doesn't penalize robot for "Resetting environment" when its supposed to
     body_contact = DoneTerm(
         func=mdp.illegal_contact,
         params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=["body", ".*leg"]), "threshold": 1.0},
@@ -314,10 +339,10 @@ class SpotTerminationsCfg:
     )
 
 
-# Full MDP
 @configclass
 class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
 
+    scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)
     # Basic settings
     observations: SpotObservationsCfg = SpotObservationsCfg()
     actions: SpotActionsCfg = SpotActionsCfg()
@@ -349,6 +374,33 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         # we tick all the sensors based on the smallest update period (physics update period)
         self.scene.contact_forces.update_period = self.sim.dt
 
+        # switch robot to Spot-d
+        #self.scene.robot = SPOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+    #    # terrain
+    #     self.scene.terrain = TerrainImporterCfg(
+    #         prim_path="/World/ground",
+    #         terrain_type="generator",
+    #         terrain_generator=rma_mdp.COBBLESTONE_ROAD_CFG,
+    #         max_init_terrain_level=rma_mdp.COBBLESTONE_ROAD_CFG.num_rows - 1,
+    #         collision_group=-1,
+    #         physics_material=sim_utils.RigidBodyMaterialCfg(
+    #             friction_combine_mode="multiply",
+    #             restitution_combine_mode="multiply",
+    #             static_friction=1.0,
+    #             dynamic_friction=1.0,
+    #         ),
+    #         visual_material=sim_utils.MdlFileCfg(
+    #             mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
+    #             project_uvw=True,
+    #             texture_scale=(0.25, 0.25),
+    #         ),
+    #         debug_vis=True,
+    #     )
+
+    #     # no height scan
+    #     self.scene.height_scanner = None
+
 
 class SpotFlatEnvCfg_PLAY(SpotFlatEnvCfg):
     def __post_init__(self) -> None:
@@ -366,7 +418,8 @@ class SpotFlatEnvCfg_PLAY(SpotFlatEnvCfg):
             self.scene.terrain.terrain_generator.num_rows = 5
             self.scene.terrain.terrain_generator.num_cols = 5
             self.scene.terrain.terrain_generator.curriculum = False
-
+ 
         # disable randomization for play
         self.observations.policy.enable_corruption = False
         # remove random pushing event
+

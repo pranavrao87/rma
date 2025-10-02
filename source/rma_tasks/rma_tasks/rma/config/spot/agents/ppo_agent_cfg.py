@@ -5,11 +5,11 @@ from isaaclab_rl.rsl_rl import (
     RslRlPpoAlgorithmCfg,
 )
 
-from rma_tasks.wrappers import BasePolicyCfg
 
+from rma_tasks.rma.wrappers import BasePolicyCfg
 
 @configclass
-class SpotFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+class Rma1PPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 20000
     save_interval = 500
@@ -21,9 +21,9 @@ class SpotFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     policy = BasePolicyCfg(
         class_name="BasePolicy",
         prev_step_size=48,
-        z_size=30, # Size of embedding space for priv obs
+        z_size=8, # Size of embedding space for priv obs (ASK IF IT SHOULD BE 8 BECAUSE OF PAPER)
         actor_hidden_dims=[512, 256, 128],
-        encoder_hidden_dims=[256, 256, 30],
+        encoder_hidden_dims=[256, 128],
         critic_hidden_dims=[512, 256, 128],
         activation="elu",
         init_noise_std=1.0,

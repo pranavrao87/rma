@@ -1,6 +1,5 @@
 import isaaclab.terrains as terrain_gen
 
-
 COBBLESTONE_ROAD_CFG = terrain_gen.TerrainGeneratorCfg(
     size=(8.0, 8.0),
     border_width=20.0,
