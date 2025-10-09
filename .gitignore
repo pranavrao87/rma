@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+env/
+venv/
+*.egg-info/
+dist/
+build/
+
+# VSCode
+.vscode/
+
+# JetBrains IDEs
+.idea/
+*.iml
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
