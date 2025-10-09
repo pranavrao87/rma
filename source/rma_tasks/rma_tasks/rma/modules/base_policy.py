@@ -42,7 +42,7 @@ class BasePolicy(nn.Module):
 
         # get the observation dimensions
         self.obs_groups = obs_groups
-        import pdb; pdb.set_trace() # will print out obs, obs_groups to see their dimensions
+        # import pdb; pdb.set_trace() # will print out obs, obs_groups to see their dimensions
         num_actor_obs = 0 # should be 42 (30 proprio + 12 prev action) based on paper
         for obs_group in obs_groups["policy"]:
             assert len(obs[obs_group].shape) == 2, "The ActorCritic module only supports 1D observations."
