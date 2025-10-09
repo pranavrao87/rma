@@ -18,6 +18,7 @@ class Rma1PPORunnerCfg(RslRlOnPolicyRunnerCfg):
     store_code_state = False
     logger = "wandb"
     wandb_project = "Vision_RMA"
+    obs_group = {"policy" : ["policy"], "priv_obs" : ["priv_obs"]}
     policy = BasePolicyCfg(
         class_name="BasePolicy",
         prev_step_size=48,
