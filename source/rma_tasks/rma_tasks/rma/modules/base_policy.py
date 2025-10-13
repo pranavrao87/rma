@@ -22,7 +22,7 @@ class BasePolicy(nn.Module):
         obs_groups,
         num_actions,
         z_size=8,
-        encoder_obs_normalization=False,
+        encoder_obs_normalization=True,
         actor_obs_normalization=False,
         critic_obs_normalization=False,
         encoder_hidden_dims=[256, 256,256],

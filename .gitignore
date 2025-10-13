@@ -16,6 +16,7 @@ venv/
 *.egg-info/
 dist/
 build/
+*.pyc
 
 # VSCode
 .vscode/
@@ -30,3 +31,9 @@ build/
 # Temporary files
 *.tmp
 *.swp
+
+# Folders
+logs/
+outputs/
+wandb/
+
