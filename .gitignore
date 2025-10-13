@@ -11,12 +11,12 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+*.pyc
 env/
 venv/
 *.egg-info/
 dist/
 build/
-*.pyc
 
 # VSCode
 .vscode/
