@@ -193,7 +193,7 @@ class BasePolicy(nn.Module):
     def update_normalization(self, obs):
         if self.encoder_obs_normalization:
             encoder_obs = self.get_encoder_obs(obs)
-            self.self.encoder_obs_normalization.update(encoder_obs)
+            self.encoder_obs_normalization.update(encoder_obs)
         if self.actor_obs_normalization:
             actor_obs = self.get_actor_obs(obs)
             self.actor_obs_normalizer.update(actor_obs)
