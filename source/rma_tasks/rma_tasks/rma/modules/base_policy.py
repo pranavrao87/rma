@@ -51,7 +51,9 @@ class BasePolicy(nn.Module):
         for obs_group in obs_groups["critic"]:
             assert len(obs[obs_group].shape) == 2, "The ActorCritic module only supports 1D observations."
             num_critic_obs += obs[obs_group].shape[-1]
-            
+        
+        # import pdb; pdb.set_trace()
+
         # FIND OUT WHAT THE KEY FOR ENV OBSERVATIONS IS
         num_env_obs = 0 # should be 17 based on paper
         for obs_group in obs_groups["env"]:
@@ -119,8 +121,6 @@ class BasePolicy(nn.Module):
     @property
     def entropy(self):
         return self.distribution.entropy().sum(dim=-1)
-
-    # ALSO ADD POLICYCFG class...ASK WHICH FILE????
     
     def update_distribution(self, obs):
         # Gather all policy inputs

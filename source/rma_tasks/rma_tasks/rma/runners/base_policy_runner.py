@@ -39,7 +39,7 @@ class BasePolicyRunner:
 
         # query observations from environment for algorithm construction
         obs = self.env.get_observations()
-        default_sets = ["critic"]
+        default_sets = ["critic", "env", "priv_obs"]
         if "rnd_cfg" in self.alg_cfg and self.alg_cfg["rnd_cfg"] is not None:
             default_sets.append("rnd_state")
         self.cfg["obs_groups"] = resolve_obs_groups(obs, self.cfg["obs_groups"], default_sets)
