@@ -22,7 +22,7 @@ class BasePolicy(nn.Module):
         obs_groups,
         num_actions,
         z_size=8,
-        encoder_obs_normalization=True,
+        encoder_obs_normalization=False,
         actor_obs_normalization=False,
         critic_obs_normalization=False,
         encoder_hidden_dims=[256, 256,256],
@@ -42,7 +42,6 @@ class BasePolicy(nn.Module):
 
         # get the observation dimensions
         self.obs_groups = obs_groups
-        # import pdb; pdb.set_trace() # will print out obs, obs_groups to see their dimensions
         num_actor_obs = 0 # should be 42 (30 proprio + 12 prev action) based on paper
         for obs_group in obs_groups["policy"]:
             assert len(obs[obs_group].shape) == 2, "The ActorCritic module only supports 1D observations."
@@ -52,9 +51,6 @@ class BasePolicy(nn.Module):
             assert len(obs[obs_group].shape) == 2, "The ActorCritic module only supports 1D observations."
             num_critic_obs += obs[obs_group].shape[-1]
         
-        # import pdb; pdb.set_trace()
-
-        # FIND OUT WHAT THE KEY FOR ENV OBSERVATIONS IS
         num_env_obs = 0 # should be 17 based on paper
         for obs_group in obs_groups["env"]:
             assert len(obs[obs_group].shape) == 2, "The ActorCritic module only supports 1D observations."
@@ -65,9 +61,9 @@ class BasePolicy(nn.Module):
         # encoder observation normalization
         self.encoder_obs_normalization = encoder_obs_normalization
         if encoder_obs_normalization:
-            self.encoder_obs_normalization = EmpiricalNormalization(num_env_obs)
+            self.encoder_obs_normalizer = EmpiricalNormalization(num_env_obs)
         else:
-            self.encoder_obs_normalization = torch.nn.Identity()
+            self.encoder_obs_normalizer = torch.nn.Identity()
         print(f"Encoder MLP: {self.encoder}")
         
         # actor
@@ -126,7 +122,7 @@ class BasePolicy(nn.Module):
         # Gather all policy inputs
         actor_obs = self.get_actor_obs(obs)  # shape: (B, 42)
         env_obs = self.get_encoder_obs(obs)  # shape: (B, 17)
-        env_input = self.encoder_obs_normalization(env_obs)
+        env_input = self.encoder_obs_normalizer(env_obs)
         
         # Combine everything (x_30, a_t-1_12, z_8 for actor input)
         latent_space = self.encoder(env_input)  # shape: (B, 8)
@@ -154,7 +150,7 @@ class BasePolicy(nn.Module):
     def act_inference(self, obs):
         actor_obs = self.get_actor_obs(obs)  # shape: (B, 42)
         env_obs = self.get_encoder_obs(obs)  # shape: (B, 17)
-        env_input = self.encoder_obs_normalization(env_obs)
+        env_input = self.encoder_obs_normalizer(env_obs)
         
         latent_space = self.encoder(env_input)  # shape: (B, 8)t
         actor_input = torch.cat([actor_obs, latent_space], dim=-1)  # shape: (B, 50)
@@ -193,7 +189,7 @@ class BasePolicy(nn.Module):
     def update_normalization(self, obs):
         if self.encoder_obs_normalization:
             encoder_obs = self.get_encoder_obs(obs)
-            self.encoder_obs_normalization.update(encoder_obs)
+            self.encoder_obs_normalizer.update(encoder_obs)
         if self.actor_obs_normalization:
             actor_obs = self.get_actor_obs(obs)
             self.actor_obs_normalizer.update(actor_obs)
