@@ -12,7 +12,7 @@ from torch.distributions import Normal
 from rsl_rl.networks import MLP, EmpiricalNormalization
 from rsl_rl.modules import ActorCritic
 
-class BasePolicy(nn.Module):
+class AdaptionModule(nn.Module):
     is_recurrent = False
 
     def __init__(
@@ -54,11 +54,10 @@ class BasePolicy(nn.Module):
         
         # env: priv_obs 
         num_env_obs = 0 # large amount of priv obs expected
-        for obs_group in obs_groups["priv_obs"]:
+        for obs_group in obs_groups["history"]:
             assert len(obs[obs_group].shape) == 2, "The ActorCritic module only supports 1D observations."
             num_env_obs += obs[obs_group].shape[-1]
-        
-        
+                
         # encoder --> put priv_obs through MLP to get z_size(8 according to paper)
         self.encoder = MLP(num_env_obs, z_size, encoder_hidden_dims, activation)
         # encoder observation normalization

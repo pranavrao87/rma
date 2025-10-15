@@ -39,7 +39,7 @@ class BasePolicyRunner:
 
         # query observations from environment for algorithm construction
         obs = self.env.get_observations()
-        default_sets = ["critic", "env", "priv_obs"]
+        default_sets = ["critic", "priv_obs"]
         if "rnd_cfg" in self.alg_cfg and self.alg_cfg["rnd_cfg"] is not None:
             default_sets.append("rnd_state")
         self.cfg["obs_groups"] = resolve_obs_groups(obs, self.cfg["obs_groups"], default_sets)
@@ -221,6 +221,10 @@ class BasePolicyRunner:
         self.writer.add_scalar("Perf/total_fps", fps, locs["it"])
         self.writer.add_scalar("Perf/collection time", locs["collection_time"], locs["it"])
         self.writer.add_scalar("Perf/learning_time", locs["learn_time"], locs["it"])
+
+        # callback for video logging
+        if self.logger_type in ["wandb"]:
+            self.writer.callback(locs["it"])
 
         # -- Training
         if len(locs["rewbuffer"]) > 0:
@@ -449,7 +453,7 @@ class BasePolicyRunner:
                 self.writer = NeptuneSummaryWriter(log_dir=self.log_dir, flush_secs=10, cfg=self.cfg)
                 self.writer.log_config(self.env.cfg, self.cfg, self.alg_cfg, self.policy_cfg)
             elif self.logger_type == "wandb":
-                from rsl_rl.utils.wandb_utils import WandbSummaryWriter
+                from rma_utils.wandb_utils import WandbSummaryWriter
 
                 self.writer = WandbSummaryWriter(log_dir=self.log_dir, flush_secs=10, cfg=self.cfg)
                 self.writer.log_config(self.env.cfg, self.cfg, self.alg_cfg, self.policy_cfg)

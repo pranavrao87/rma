@@ -34,8 +34,8 @@ class MySceneCfg(InteractiveSceneCfg):
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="generator",
-        terrain_generator=rma_mdp.COBBLESTONE_ROAD_CFG,
-        max_init_terrain_level=rma_mdp.COBBLESTONE_ROAD_CFG.num_rows - 1,
+        terrain_generator=rma_mdp.REALLY_HARD_CFG,
+        max_init_terrain_level=rma_mdp.REALLY_HARD_CFG.num_rows - 1,
         collision_group=-1,
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
@@ -354,7 +354,7 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
     events: SpotEventCfg = SpotEventCfg()
 
     # Viewer
-    viewer = ViewerCfg(eye=(10.5, 10.5, 0.3), origin_type="world", env_index=0, asset_name="robot")
+    viewer = ViewerCfg(eye=(10.5, 10.5, 10), origin_type="world", env_index=1000, asset_name="robot")
 
     def __post_init__(self):
         # post init of parent
