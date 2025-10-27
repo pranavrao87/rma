@@ -39,7 +39,7 @@ class DistillationRunner(OnPolicyRunner):
 
         # query observations from environment for algorithm construction
         obs = self.env.get_observations()
-        self.cfg["obs_groups"] = resolve_obs_groups(obs, self.cfg["obs_groups"], default_sets=["priv_obs", "history"])
+        self.cfg["obs_groups"] = resolve_obs_groups(obs, self.cfg["obs_groups"], default_sets=["history"])
 
         # create the algorithm
         self.alg = self._construct_algorithm(obs)

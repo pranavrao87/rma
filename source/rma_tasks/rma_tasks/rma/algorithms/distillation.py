@@ -118,13 +118,11 @@ class Distillation:
             for obs, _, privileged_actions, dones in self.storage.generator():
 
                 # inference the student for gradient computation
-                # don't care about actions anymore can just get_latents
-                # get z and z hat
+                # comparing latents of student and teacher
                 teacher_latents = self.teacher.get_latents(obs)
                 student_latents = self.policy.get_latents(obs) 
 
                 # behavior cloning loss
-                # TODO: change this to evaluate latents vector (z hat and z) get latents
                 behavior_loss = self.loss_fn(student_latents, teacher_latents)
 
                 # total loss
