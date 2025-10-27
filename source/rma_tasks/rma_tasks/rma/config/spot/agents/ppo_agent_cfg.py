@@ -79,7 +79,7 @@ class Rma2PPORunnerCfg(RslRlOnPolicyRunnerCfg):
         max_grad_norm=1.0,
     )
     policy = BasePolicyCfg(
-        class_name="AdaptionModule",
+        class_name="AdaptationModule",
         z_size=8, # Size of embedding space for priv obs 
         actor_hidden_dims=[512, 256, 128],
         encoder_hidden_dims=[256, 128],

@@ -17,7 +17,7 @@ from rsl_rl.modules import StudentTeacher, StudentTeacherRecurrent
 from rsl_rl.runners import OnPolicyRunner
 from rsl_rl.utils import resolve_obs_groups, store_code_state
 
-from rma_tasks.modules import AdaptionModule, BasePolicy
+from rma_tasks.modules import AdaptationModule, BasePolicy
 
 class DistillationRunner(OnPolicyRunner):
     """On-policy runner for training and evaluation of teacher-student training."""
@@ -39,7 +39,7 @@ class DistillationRunner(OnPolicyRunner):
 
         # query observations from environment for algorithm construction
         obs = self.env.get_observations()
-        self.cfg["obs_groups"] = resolve_obs_groups(obs, self.cfg["obs_groups"], default_sets=["teacher"])
+        self.cfg["obs_groups"] = resolve_obs_groups(obs, self.cfg["obs_groups"], default_sets=["priv_obs", "history"])
 
         # create the algorithm
         self.alg = self._construct_algorithm(obs)
@@ -159,7 +159,7 @@ class DistillationRunner(OnPolicyRunner):
         """Construct the distillation algorithm."""
         # initialize the actor-critic
         policy_class = eval(self.policy_cfg.pop("class_name"))
-        policy: AdaptionModule = policy_class(
+        policy: AdaptationModule = policy_class(
             obs, self.cfg["obs_groups"], self.env.num_actions, **self.policy_cfg
         ).to(self.device)
 

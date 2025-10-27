@@ -13,6 +13,6 @@ class BasePolicyCfg(RslRlPpoActorCriticCfg):
     z_size: int = MISSING
 
 @configclass
-class AdaptionModuleCfg(RslRlPpoActorCriticCfg):
+class AdaptationModuleCfg(RslRlPpoActorCriticCfg):
     encoder_hidden_dims: list = MISSING
     z_size: int = MISSING

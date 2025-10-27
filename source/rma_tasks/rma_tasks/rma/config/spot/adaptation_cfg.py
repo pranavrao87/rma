@@ -1,4 +1,13 @@
-from flat_env_cfg import SpotFlatEnvCfg
+from flat_env_cfg import SpotFlatEnvCfg, SpotActionsCfg, SpotRewardsCfg, SpotEventCfg, SpotTerminationsCfg, SpotCommandsCfg, MySceneCfg
+
+from isaaclab.envs import ViewerCfg
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils import configclass
+from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
+import rma_mdp as rma_mdp
 
 
 
@@ -79,7 +88,7 @@ class SpotObservationsCfg:
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = True
-            self.history_length = 12 # according to paper
+            self.history_length = 40 # according to paper
 
 
     # observation groups
@@ -90,7 +99,7 @@ class SpotObservationsCfg:
 
 
 @configclass
-class SpotAdaptionCfg(SpotFlatEnvCfg):
+class SpotAdaptationCfg(SpotFlatEnvCfg):
 
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)
     # Basic settings

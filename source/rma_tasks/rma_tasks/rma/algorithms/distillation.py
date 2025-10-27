@@ -10,12 +10,13 @@ from rsl_rl.modules import StudentTeacher, StudentTeacherRecurrent
 from rsl_rl.storage import RolloutStorage
 from rsl_rl.utils import resolve_optimizer
 
-from rma_tasks.rma.modules import BasePolicy, AdaptionModule
+from rma_tasks.rma.modules import BasePolicy, AdaptationModule
 
+# teacher is really just the trained base policy + encoder being used to generate supervision for the adaptation module.
 class Distillation:
     """Distillation algorithm for training a student model to mimic a teacher model."""
 
-    policy: AdaptionModule
+    policy: AdaptationModule
     teacher: BasePolicy
     """The student teacher model."""
 
@@ -87,16 +88,12 @@ class Distillation:
 
     def act(self, obs):
         # compute the actions
-        # TODO: re-assign obs
-        self.transition.actions = self.teacher.act_inference(obs).detach()
-        self.transition.privileged_actions = self.policy.evaluate(obs).detach()
-
-        # TODO: Find rollout storage to keep track of latents vector and add latents vector to actions
-
-        # record the observations
+        self.transition.latents = self.policy.get_latents(obs) # uses history
+        self.transition.actions = self.policy.act(self.transition.latents + obs).detach()
+        self.transition.teacher_latents = self.teacher.get_latents(obs).detach() # uses priv_obs
         self.transition.observations = obs
         return self.transition.actions
-
+    
     def process_env_step(self, obs, rewards, dones, extras):
         # update the normalizers
         self.policy.update_normalization(obs)
@@ -121,11 +118,14 @@ class Distillation:
             for obs, _, privileged_actions, dones in self.storage.generator():
 
                 # inference the student for gradient computation
-                actions = self.policy.act_inference(obs)
+                # don't care about actions anymore can just get_latents
+                # get z and z hat
+                teacher_latents = self.teacher.get_latents(obs)
+                student_latents = self.policy.get_latents(obs) 
 
                 # behavior cloning loss
                 # TODO: change this to evaluate latents vector (z hat and z) get latents
-                behavior_loss = self.loss_fn(actions, privileged_actions)
+                behavior_loss = self.loss_fn(student_latents, teacher_latents)
 
                 # total loss
                 loss = loss + behavior_loss

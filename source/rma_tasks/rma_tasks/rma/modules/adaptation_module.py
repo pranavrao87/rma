@@ -12,7 +12,7 @@ from torch.distributions import Normal
 from rsl_rl.networks import MLP, EmpiricalNormalization
 from rsl_rl.modules import ActorCritic
 
-class AdaptionModule(nn.Module):
+class AdaptationModule(nn.Module):
     is_recurrent = False
 
     def __init__(
@@ -52,7 +52,7 @@ class AdaptionModule(nn.Module):
             assert len(obs[obs_group].shape) == 2, "The ActorCritic module only supports 1D observations."
             num_critic_obs += obs[obs_group].shape[-1]
         
-        # env: priv_obs 
+        # history: history of actions 
         num_env_obs = 0 # large amount of priv obs expected
         for obs_group in obs_groups["history"]:
             assert len(obs[obs_group].shape) == 2, "The ActorCritic module only supports 1D observations."
@@ -149,7 +149,6 @@ class AdaptionModule(nn.Module):
         self.update_distribution(obs)
         return self.distribution.sample()
     
-    # CONFIRM: that this is only run in evaluation time, so no need to update self.distribution
     def act_inference(self, obs):
         actor_obs = self.get_actor_obs(obs)  # shape: (B, 42)
         env_obs = self.get_encoder_obs(obs)  # shape: (B, 17)
@@ -163,6 +162,13 @@ class AdaptionModule(nn.Module):
         mean = self.actor(actor_input)  # shape: (B, num_actions)
         return mean
 
+    def get_latents(self, obs):
+        env_obs = self.get_encoder_obs(obs)  # shape: (B, 17)
+        env_input = self.encoder_obs_normalizer(env_obs)
+        
+        latent_space = self.encoder(env_input)  # shape: (B, 8)t
+        return latent_space
+
     def evaluate(self, obs, **kwargs):
         obs = self.get_critic_obs(obs)
         obs = self.critic_obs_normalizer(obs)
@@ -170,7 +176,7 @@ class AdaptionModule(nn.Module):
     
     def get_encoder_obs(self, obs):
         obs_list = []
-        for obs_group in self.obs_groups["priv_obs"]:
+        for obs_group in self.obs_groups["history"]:
             obs_list.append(obs[obs_group])
         return torch.cat(obs_list, dim=-1)
 

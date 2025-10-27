@@ -164,6 +164,13 @@ class BasePolicy(nn.Module):
         mean = self.actor(actor_input)  # shape: (B, num_actions)
         return mean
 
+    def get_latents(self, obs):
+        env_obs = self.get_encoder_obs(obs)  # shape: (B, 17)
+        env_input = self.encoder_obs_normalizer(env_obs)
+        
+        latent_space = self.encoder(env_input)  # shape: (B, 8)t
+        return latent_space
+
     def evaluate(self, obs, **kwargs):
         obs = self.get_critic_obs(obs)
         obs = self.critic_obs_normalizer(obs)
