@@ -49,6 +49,8 @@ parser.add_argument(
     default="", 
     help="Model from WandB."
 )
+parser.add_argument("--actor_model", type=str, default=None, required=True, help="Path to actor model checkpoint.")
+
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
