@@ -3,6 +3,7 @@ from isaaclab.utils import configclass
 from isaaclab_rl.rsl_rl import (
     RslRlOnPolicyRunnerCfg,
     RslRlPpoAlgorithmCfg,
+    RslRlDistillationAlgorithmCfg
 )
 
 
@@ -54,7 +55,7 @@ class Rma2PPORunnerCfg(RslRlOnPolicyRunnerCfg):
     store_code_state = False
     logger = "wandb"
     wandb_project = "Vision_RMA"
-    obs_group = {"policy" : ["policy"], "priv_obs" : ["priv_obs"], "history" : ["history"]}
+    obs_group = {"policy" : ["policy"], "priv_obs" : ["priv_obs"], "history" : ["history"], "critic" : ["policy"]}
     teacher = BasePolicyCfg(
         class_name="BasePolicy",
         z_size=8, # Size of embedding space for priv obs 
@@ -64,19 +65,9 @@ class Rma2PPORunnerCfg(RslRlOnPolicyRunnerCfg):
         activation="elu",
         init_noise_std=1.0,
     )
-    algorithm = RslRlPpoAlgorithmCfg(
-        value_loss_coef=0.5,
-        use_clipped_value_loss=True,
-        clip_param=0.2,
-        entropy_coef=0.0025,
+    algorithm = RslRlDistillationAlgorithmCfg(
         num_learning_epochs=5,
-        num_mini_batches=4,
         learning_rate=1.0e-3,
-        schedule="adaptive",
-        gamma=0.99,
-        lam=0.95,
-        desired_kl=0.01,
-        max_grad_norm=1.0,
     )
     policy = BasePolicyCfg(
         class_name="AdaptationModule",

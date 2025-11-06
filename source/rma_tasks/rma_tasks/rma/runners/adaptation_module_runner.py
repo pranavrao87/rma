@@ -17,7 +17,7 @@ from rsl_rl.modules import StudentTeacher, StudentTeacherRecurrent
 from rsl_rl.runners import OnPolicyRunner
 from rsl_rl.utils import resolve_obs_groups, store_code_state
 
-from rma_tasks.modules import AdaptationModule, BasePolicy
+from rma_tasks.rma.modules import AdaptationModule, BasePolicy
 
 class DistillationRunner(OnPolicyRunner):
     """On-policy runner for training and evaluation of teacher-student training."""
@@ -39,8 +39,7 @@ class DistillationRunner(OnPolicyRunner):
 
         # query observations from environment for algorithm construction
         obs = self.env.get_observations()
-        self.cfg["obs_groups"] = resolve_obs_groups(obs, self.cfg["obs_groups"], default_sets=["history"])
-
+        self.cfg["obs_groups"] = resolve_obs_groups(obs, self.cfg["obs_groups"], default_sets=["critic", "history", "priv_obs"])
         # create the algorithm
         self.alg = self._construct_algorithm(obs)
 
@@ -304,7 +303,7 @@ class DistillationRunner(OnPolicyRunner):
                 model_state_dict[key] = value
         
         # Load the mapped state dict
-        missing_keys, unexpected_keys = self.policy.actor.load_state_dict(model_state_dict, strict=False)
+        missing_keys, unexpected_keys = self.alg.policy.actor.load_state_dict(model_state_dict, strict=False)
         
         if missing_keys:
             print(f"Missing keys: {missing_keys}")

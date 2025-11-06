@@ -1,5 +1,3 @@
-from flat_env_cfg import SpotFlatEnvCfg, SpotActionsCfg, SpotRewardsCfg, SpotEventCfg, SpotTerminationsCfg, SpotCommandsCfg, MySceneCfg
-
 from isaaclab.envs import ViewerCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -9,7 +7,7 @@ from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 import rma_mdp as rma_mdp
 
-
+from .flat_env_cfg import SpotFlatEnvCfg
 
 @configclass
 class SpotObservationsCfg:
@@ -101,16 +99,8 @@ class SpotObservationsCfg:
 @configclass
 class SpotAdaptationCfg(SpotFlatEnvCfg):
 
-    scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)
     # Basic settings
     observations: SpotObservationsCfg = SpotObservationsCfg()
-    actions: SpotActionsCfg = SpotActionsCfg()
-    commands: SpotCommandsCfg = SpotCommandsCfg()
-
-    # MDP setting
-    rewards: SpotRewardsCfg = SpotRewardsCfg()
-    terminations: SpotTerminationsCfg = SpotTerminationsCfg()
-    events: SpotEventCfg = SpotEventCfg()
 
     # Viewer
     viewer = ViewerCfg(eye=(10.5, 10.5, 10), origin_type="world", env_index=1000, asset_name="robot")

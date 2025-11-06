@@ -100,7 +100,7 @@ from datetime import datetime
 
 import omni
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
-from rma_tasks.rma.runners import BasePolicyRunner
+from rma_tasks.rma.runners import DistillationRunner
 
 from isaaclab.envs import (
     DirectMARLEnv,
@@ -200,12 +200,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
 
     # create runner from rsl-r
-    if agent_cfg.class_name == "OnPolicyRunner":
-        runner = BasePolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
-    elif agent_cfg.class_name == "DistillationRunner":
-        runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
-    else:
-        raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
+
+    runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+
     # write git state to logs
     runner.add_git_repo_to_log(__file__)
 
@@ -221,10 +218,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         runner.load_baseActor_policy(args_cli.actor_model)
 
     # load the checkpoint
-    if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
-        print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-        # load previously trained model
-        runner.load(resume_path)
+    # if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
+    #     print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+    #     # load previously trained model
+    #     runner.load(resume_path)
 
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
