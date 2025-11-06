@@ -31,6 +31,24 @@ parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
 parser.add_argument("--export_io_descriptors", action="store_true", default=False, help="Export IO descriptors.")
+
+parser.add_argument(
+    "--wandb", 
+    action="store_true", 
+    default=False, 
+    help="Resume with model from WandB."
+)
+parser.add_argument(
+    "--wandb_run", 
+    type=str, default="", 
+    help="Run from WandB."
+)
+parser.add_argument(
+    "--wandb_model", 
+    type=str, 
+    default="", 
+    help="Model from WandB."
+)
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -159,8 +177,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env = multi_agent_to_single_agent(env)
 
     # save resume path before creating a new log_dir
-    if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
-        resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+    # if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
+    #     resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
 
     # wrap for video recording
     if args_cli.video:
@@ -177,7 +195,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # wrap around environment for rsl-rl
     env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
-    # create runner from rsl-rl
+
+    # create runner from rsl-r
     if agent_cfg.class_name == "OnPolicyRunner":
         runner = BasePolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
     elif agent_cfg.class_name == "DistillationRunner":
@@ -186,6 +205,18 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
     # write git state to logs
     runner.add_git_repo_to_log(__file__)
+
+
+    if args_cli.actor_model == "wandb":
+        # load configuration
+        run_path = args_cli.wandb_run
+        model_name = args_cli.wandb_model
+        resume_path, _ = load_wandb_policy(run_path, model_name, log_root_path)
+        runner.load_baseActor_policy(resume_path)
+    else:
+        # load previously trained model
+        runner.load_baseActor_policy(args_cli.actor_model)
+
     # load the checkpoint
     if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
         print(f"[INFO]: Loading model checkpoint from: {resume_path}")

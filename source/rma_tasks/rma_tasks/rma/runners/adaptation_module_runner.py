@@ -285,4 +285,28 @@ class DistillationRunner(OnPolicyRunner):
             [self.env.num_actions],
         )
 
-        return alg
+        return alg    
+
+    def load_baseActor_policy(self, path: str, load_optimizer: bool = True, map_location: str | None = None):
+        loaded_dict = torch.load(path, weights_only=False, map_location=map_location)
+        
+        # Create a new state dict with the correct keys for FlowMLP
+        model_state_dict = {}
+        
+        # Map student keys to FlowMLP keys
+        for key, value in loaded_dict["model_state_dict"].items():
+            if key.startswith("actor."):
+                # Remove the "actor." prefix
+                new_key = key[8:]  # Remove "student." (8 characters)
+                model_state_dict[new_key] = value
+            elif key == "std":
+                # Handle the std parameter if needed
+                model_state_dict[key] = value
+        
+        # Load the mapped state dict
+        missing_keys, unexpected_keys = self.policy.actor.load_state_dict(model_state_dict, strict=False)
+        
+        if missing_keys:
+            print(f"Missing keys: {missing_keys}")
+        if unexpected_keys:
+            print(f"Unexpected keys: {unexpected_keys}")
