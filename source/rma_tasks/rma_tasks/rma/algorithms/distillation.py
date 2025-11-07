@@ -63,6 +63,8 @@ class Distillation:
         self.learning_rate = learning_rate
         self.max_grad_norm = max_grad_norm
 
+        self.loaded_teacher = False
+
         # initialize the loss function
         loss_fn_dict = {
             "mse": nn.functional.mse_loss,
@@ -189,3 +191,19 @@ class Distillation:
                 param.grad.data.copy_(all_grads[offset : offset + numel].view_as(param.grad.data))
                 # update the offset for the next parameter
                 offset += numel
+        
+    def load_teacher(self, checkpoint_path: str, map_location: str | None = None):
+        """Load the teacher policy from a checkpoint."""
+        checkpoint = torch.load(checkpoint_path, map_location=map_location)
+        if "model_state_dict" not in checkpoint:
+            raise ValueError(f"Invalid checkpoint file: {checkpoint_path}. Missing 'model_state_dict'.")
+        
+        # Load the teacher's weights
+        missing_keys, unexpected_keys = self.teacher.load_state_dict(checkpoint["model_state_dict"], strict=False)
+        if missing_keys:
+            print(f"[WARNING] Missing keys in teacher policy: {missing_keys}")
+        if unexpected_keys:
+            print(f"[WARNING] Unexpected keys in teacher policy: {unexpected_keys}")
+        
+        self.loaded_teacher = True  # Set the flag to True after loading
+        print(f"[INFO] Teacher policy loaded successfully from {checkpoint_path}.")

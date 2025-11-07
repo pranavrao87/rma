@@ -275,6 +275,13 @@ class DistillationRunner(OnPolicyRunner):
             policy, device=self.device, **self.alg_cfg, multi_gpu_cfg=self.multi_gpu_cfg
         )
 
+        # load the teacher policy
+        teacher_checkpoint_path = self.teacher_cfg.get("checkpoint_path", None)
+        if teacher_checkpoint_path:
+            alg.load_teacher(teacher_checkpoint_path, map_location=self.device)
+        else:
+            raise ValueError("Teacher checkpoint path is not provided in the configuration.")
+
         # initialize the storage
         alg.init_storage(
             "distillation",
