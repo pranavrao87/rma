@@ -49,6 +49,8 @@ class Distillation:
         self.policy = policy
         self.policy.to(self.device)
         self.storage = None  # initialized later
+        self.teacher = teacher
+        self.teacher.to(self.device)
 
         # initialize the optimizer for the encoder
         self.optimizer = resolve_optimizer(optimizer)(self.policy.encoder.parameters(), lr=learning_rate)
@@ -63,7 +65,7 @@ class Distillation:
         self.learning_rate = learning_rate
         self.max_grad_norm = max_grad_norm
 
-        self.loaded_teacher = False
+        self.policy.loaded_teacher = False
 
         # initialize the loss function
         loss_fn_dict = {
@@ -89,12 +91,30 @@ class Distillation:
         )
 
     def act(self, obs):
-        # compute the actions
-        self.transition.latents = self.policy.get_latents(obs) # uses history
-        self.transition.actions = self.policy.act(self.transition.latents + obs).detach()
-        self.transition.teacher_latents = self.teacher.get_latents(obs).detach() # uses priv_obs
+        with torch.no_grad():
+            teacher_latents = self.teacher.get_latents(obs).detach()
+            teacher_action = self.teacher.act_inference(obs).detach()
+
+            # Student latent (we can detach for storage; during update we will recompute with grad)
+            student_latents = self.policy.get_latents(obs).detach()
+
+        # # compute the actions
+        # self.transition.latents = self.policy.get_latents(obs) # uses history
+        # self.transition.actions = self.policy.act(self.transition.latents + obs).detach()
+        # self.transition.teacher_latents = self.teacher.get_latents(obs).detach() # uses priv_obs
+        # self.transition.observations = obs
+        # return self.transition.actions
+
+        # store in transition; don't mutate obs or try to add tensors to the tensordict
+        self.transition.teacher_latents = teacher_latents
+        self.transition.student_latents = student_latents
         self.transition.observations = obs
-        return self.transition.actions
+        # If you need the teacher action saved too (optional):
+        self.transition.actions = teacher_action
+
+        # return the action that will be executed in the env (teacher's deterministic action)
+        return teacher_action
+
     
     def process_env_step(self, obs, rewards, dones, extras):
         # update the normalizers
@@ -197,13 +217,12 @@ class Distillation:
         checkpoint = torch.load(checkpoint_path, map_location=map_location)
         if "model_state_dict" not in checkpoint:
             raise ValueError(f"Invalid checkpoint file: {checkpoint_path}. Missing 'model_state_dict'.")
-        
-        # Load the teacher's weights
-        missing_keys, unexpected_keys = self.teacher.load_state_dict(checkpoint["model_state_dict"], strict=False)
-        if missing_keys:
-            print(f"[WARNING] Missing keys in teacher policy: {missing_keys}")
-        if unexpected_keys:
-            print(f"[WARNING] Unexpected keys in teacher policy: {unexpected_keys}")
-        
-        self.loaded_teacher = True  # Set the flag to True after loading
+
+        load_result = self.teacher.load_state_dict(checkpoint["model_state_dict"], strict=False)
+        if hasattr(load_result, "missing_keys") and load_result.missing_keys:
+            print(f"[WARNING] Missing keys in teacher policy: {load_result.missing_keys}")
+        if hasattr(load_result, "unexpected_keys") and load_result.unexpected_keys:
+            print(f"[WARNING] Unexpected keys in teacher policy: {load_result.unexpected_keys}")
+
+        self.policy.loaded_teacher = True
         print(f"[INFO] Teacher policy loaded successfully from {checkpoint_path}.")

@@ -11,7 +11,7 @@ import torch
 from collections import deque
 
 import rsl_rl
-from rsl_rl.algorithms import Distillation
+from rma_tasks.rma.algorithms.distillation import Distillation
 from rsl_rl.env import VecEnv
 from rsl_rl.modules import StudentTeacher, StudentTeacherRecurrent
 from rsl_rl.runners import OnPolicyRunner
@@ -272,7 +272,7 @@ class DistillationRunner(OnPolicyRunner):
         # initialize the algorithm
         alg_class = eval(self.alg_cfg.pop("class_name"))
         alg: Distillation = alg_class(
-            policy, device=self.device, **self.alg_cfg, multi_gpu_cfg=self.multi_gpu_cfg
+            policy, teacher, device=self.device, **self.alg_cfg, multi_gpu_cfg=self.multi_gpu_cfg
         )
 
         # load the teacher policy

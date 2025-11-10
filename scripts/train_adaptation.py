@@ -198,7 +198,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # wrap around environment for rsl-rl
     env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
-
+    if args_cli.actor_model == "wandb":
+        # load configuration
+        run_path = args_cli.wandb_run
+        model_name = args_cli.wandb_model
+        resume_path, _ = load_wandb_policy(run_path, model_name, log_root_path)
+        agent_cfg.teacher.checkpoint_path = resume_path
+        
     # create runner from rsl-r
 
     runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
@@ -206,13 +212,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # write git state to logs
     runner.add_git_repo_to_log(__file__)
 
-
     if args_cli.actor_model == "wandb":
-        # load configuration
-        run_path = args_cli.wandb_run
-        model_name = args_cli.wandb_model
-        resume_path, _ = load_wandb_policy(run_path, model_name, log_root_path)
-        agent_cfg.teacher.checkpoint_path = resume_path
         runner.load_baseActor_policy(resume_path)
     else:
         # load previously trained model
