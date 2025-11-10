@@ -212,6 +212,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         run_path = args_cli.wandb_run
         model_name = args_cli.wandb_model
         resume_path, _ = load_wandb_policy(run_path, model_name, log_root_path)
+        agent_cfg.teacher.checkpoint_path = resume_path
         runner.load_baseActor_policy(resume_path)
     else:
         # load previously trained model
