@@ -123,10 +123,24 @@ class Distillation:
         # record the rewards and dones
         self.transition.rewards = rewards
         self.transition.dones = dones
+
+        # update latents in step
+        self.transition.student_latents = self.policy.get_latents(obs).detach()
+        self.transition.teacher_latents = self.teacher.get_latents(obs).detach()
+
         # record the transition
         self.storage.add_transitions(self.transition)
         self.transition.clear()
         self.policy.reset(dones)
+
+        # if extras is not None and "privileged_actions" in extras:
+        #     self.transition.privileged_actions = extras["privileged_actions"]
+        # else:
+        #     batch_size = next(iter(obs.values())).shape[0]  # first obs tensor
+        #     self.transition.privileged_actions = torch.zeros(
+        #         batch_size, self.policy.actor.out_features, device=self.device
+        #     )
+
 
     def update(self):
         self.num_updates += 1
@@ -141,8 +155,12 @@ class Distillation:
 
                 # inference the student for gradient computation
                 # comparing latents of student and teacher
-                teacher_latents = self.teacher.get_latents(obs)
-                student_latents = self.policy.get_latents(obs) 
+                # teacher_latents = self.teacher.get_latents(obs)
+                # student_latents = self.policy.get_latents(obs) 
+
+                # used cached latents?
+                teacher_latents = self.transition.teacher_latents
+                student_latents = self.transition.student_latents
 
                 # behavior cloning loss
                 behavior_loss = self.loss_fn(student_latents, teacher_latents)
