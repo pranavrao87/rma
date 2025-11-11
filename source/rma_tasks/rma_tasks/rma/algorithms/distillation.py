@@ -90,30 +90,56 @@ class Distillation:
             self.device,
         )
 
+    # def act(self, obs):
+    #     with torch.no_grad():
+    #         teacher_latents = self.teacher.get_latents(obs).detach()
+    #         teacher_action = self.teacher.act_inference(obs).detach()
+
+    #         # Student latent (we can detach for storage; during update we will recompute with grad)
+    #         student_latents = self.policy.get_latents(obs).detach()
+
+    #         self.transition.latents = self.policy.get_latents(obs) # uses history
+    #         privileged_action = self.policy.teacher.actor(actor_input)
+
+    #     # # compute the actions
+            
+    #     # self.transition.actions = self.policy.act(self.transition.latents + obs).detach()
+    #     # self.transition.teacher_latents = self.teacher.get_latents(obs).detach() # uses priv_obs
+    #     # self.transition.observations = obs
+    #     # return self.transition.actions
+
+    #     # store in transition; don't mutate obs or try to add tensors to the tensordict
+    #     self.transition.teacher_latents = teacher_latents
+    #     self.transition.student_latents = student_latents
+    #     self.transition.observations = obs
+    #     # If you need the teacher action saved too (optional):
+    #     self.transition.actions = teacher_action
+
+    #     # return the action that will be executed in the env (teacher's deterministic action)
+    #     return teacher_action
+
     def act(self, obs):
+        """Forward pass for environment interaction (student + teacher)."""
+        # ---- Student actions..it uses teacher actor model given input as obs+z_hat ----
+        actions = self.policy.act(obs)
+        self.transition.actions = actions.detach()
         with torch.no_grad():
-            teacher_latents = self.teacher.get_latents(obs).detach()
-            teacher_action = self.teacher.act_inference(obs).detach()
-
-            # Student latent (we can detach for storage; during update we will recompute with grad)
-            student_latents = self.policy.get_latents(obs).detach()
-
-        # # compute the actions
-        # self.transition.latents = self.policy.get_latents(obs) # uses history
-        # self.transition.actions = self.policy.act(self.transition.latents + obs).detach()
-        # self.transition.teacher_latents = self.teacher.get_latents(obs).detach() # uses priv_obs
-        # self.transition.observations = obs
-        # return self.transition.actions
-
-        # store in transition; don't mutate obs or try to add tensors to the tensordict
-        self.transition.teacher_latents = teacher_latents
-        self.transition.student_latents = student_latents
+            # ---- Student latent ----
+            self.transition.latents = self.policy.get_latents(obs).detach()
+            # ---- Teacher latent ----
+            priv_obs = self.teacher.get_encoder_obs(obs)
+            actor_obs = self.teacher.get_actor_obs(obs)
+            priv_input = self.teacher.encoder_obs_normalizer(priv_obs)
+            teacher_latent = self.teacher.encoder(priv_input).detach()
+            self.transition.teacher_latents = teacher_latent
+            # ---- Teacher action...basically same as student action but need this since code was erroring out ----
+            actor_input = torch.cat([actor_obs, teacher_latent], dim=-1)
+            privileged_action = self.teacher.actor(actor_input)
+            self.transition.privileged_actions = privileged_action.detach()
+        # ---- Save observation ----
         self.transition.observations = obs
-        # If you need the teacher action saved too (optional):
-        self.transition.actions = teacher_action
+        return self.transition.actions
 
-        # return the action that will be executed in the env (teacher's deterministic action)
-        return teacher_action
 
     
     def process_env_step(self, obs, rewards, dones, extras):
@@ -133,14 +159,6 @@ class Distillation:
         self.transition.clear()
         self.policy.reset(dones)
 
-        # if extras is not None and "privileged_actions" in extras:
-        #     self.transition.privileged_actions = extras["privileged_actions"]
-        # else:
-        #     batch_size = next(iter(obs.values())).shape[0]  # first obs tensor
-        #     self.transition.privileged_actions = torch.zeros(
-        #         batch_size, self.policy.actor.out_features, device=self.device
-        #     )
-
 
     def update(self):
         self.num_updates += 1
@@ -149,18 +167,14 @@ class Distillation:
         cnt = 0
 
         for epoch in range(self.num_learning_epochs):
-            self.policy.reset(hidden_states=self.last_hidden_states)
-            self.policy.detach_hidden_states()
+            # self.policy.reset(hidden_states=self.last_hidden_states)
+            # self.policy.detach_hidden_states()
             for obs, _, privileged_actions, dones in self.storage.generator():
 
                 # inference the student for gradient computation
                 # comparing latents of student and teacher
-                # teacher_latents = self.teacher.get_latents(obs)
-                # student_latents = self.policy.get_latents(obs) 
-
-                # used cached latents?
-                teacher_latents = self.transition.teacher_latents
-                student_latents = self.transition.student_latents
+                teacher_latents = self.teacher.get_latents(obs)
+                student_latents = self.policy.get_latents(obs) 
 
                 # behavior cloning loss
                 behavior_loss = self.loss_fn(student_latents, teacher_latents)
@@ -171,25 +185,24 @@ class Distillation:
                 cnt += 1
 
                 # gradient step
-                if cnt % self.gradient_length == 0:
-                    self.optimizer.zero_grad()
-                    loss.backward()
-                    if self.is_multi_gpu:
-                        self.reduce_parameters()
-                    if self.max_grad_norm:
-                        nn.utils.clip_grad_norm_(self.policy.student.parameters(), self.max_grad_norm)
-                    self.optimizer.step()
-                    self.policy.detach_hidden_states()
-                    loss = 0
+                self.optimizer.zero_grad()
+                loss.backward()
+                if self.is_multi_gpu:
+                    self.reduce_parameters()
+                if self.max_grad_norm:
+                    nn.utils.clip_grad_norm_(self.policy.student.parameters(), self.max_grad_norm)
+                self.optimizer.step()
+                # self.policy.detach_hidden_states()
+                loss = 0
 
-                # reset dones
-                self.policy.reset(dones.view(-1))
-                self.policy.detach_hidden_states(dones.view(-1))
+                # # reset dones
+                # self.policy.reset(dones.view(-1))
+                # self.policy.detach_hidden_states(dones.view(-1))
 
         mean_behavior_loss /= cnt
         self.storage.clear()
-        self.last_hidden_states = self.policy.get_hidden_states()
-        self.policy.detach_hidden_states()
+        # self.last_hidden_states = self.policy.get_hidden_states()
+        # self.policy.detach_hidden_states()
 
         # construct the loss dictionary
         loss_dict = {"behavior": mean_behavior_loss}
@@ -230,17 +243,3 @@ class Distillation:
                 # update the offset for the next parameter
                 offset += numel
         
-    def load_teacher(self, checkpoint_path: str, map_location: str | None = None):
-        """Load the teacher policy from a checkpoint."""
-        checkpoint = torch.load(checkpoint_path, map_location=map_location)
-        if "model_state_dict" not in checkpoint:
-            raise ValueError(f"Invalid checkpoint file: {checkpoint_path}. Missing 'model_state_dict'.")
-
-        load_result = self.teacher.load_state_dict(checkpoint["model_state_dict"], strict=False)
-        if hasattr(load_result, "missing_keys") and load_result.missing_keys:
-            print(f"[WARNING] Missing keys in teacher policy: {load_result.missing_keys}")
-        if hasattr(load_result, "unexpected_keys") and load_result.unexpected_keys:
-            print(f"[WARNING] Unexpected keys in teacher policy: {load_result.unexpected_keys}")
-
-        self.policy.loaded_teacher = True
-        print(f"[INFO] Teacher policy loaded successfully from {checkpoint_path}.")

@@ -201,15 +201,6 @@ class DistillationRunner(OnPolicyRunner):
         if self.logger_type in ["wandb"]:
             self.writer.callback(locs["it"])
 
-        # -- Training
-        if len(locs["rewbuffer"]) > 0:
-            # everything else
-            self.writer.add_scalar("Train/mean_episode_length", statistics.mean(locs["lenbuffer"]), locs["it"])
-            if self.logger_type != "wandb":  # wandb does not support non-integer x-axis logging
-                self.writer.add_scalar(
-                    "Train/mean_episode_length/time", statistics.mean(locs["lenbuffer"]), self.tot_time
-                )
-
         str = f" \033[1m Learning iteration {locs['it']}/{locs['tot_iter']} \033[0m "
 
         if len(locs["rewbuffer"]) > 0:
@@ -223,8 +214,6 @@ class DistillationRunner(OnPolicyRunner):
             # -- Losses
             for key, value in locs["loss_dict"].items():
                 log_string += f"""{f'Mean {key} loss:':>{pad}} {value:.4f}\n"""
-            # -- episode info
-            log_string += f"""{'Mean episode length:':>{pad}} {statistics.mean(locs['lenbuffer']):.2f}\n"""
         else:
             log_string = (
                 f"""{'#' * width}\n"""
@@ -264,10 +253,15 @@ class DistillationRunner(OnPolicyRunner):
             obs, self.cfg["obs_groups"], self.env.num_actions, **self.policy_cfg
         ).to(self.device)
 
+        self.policy = policy
+
+
         teacher_class = eval(self.teacher_cfg.pop("class_name"))
         teacher: BasePolicy = teacher_class(
             obs, self.cfg["obs_groups"], self.env.num_actions, **self.teacher_cfg
         ).to(self.device)
+
+        self.teacher = teacher
         
         # initialize the algorithm
         alg_class = eval(self.alg_cfg.pop("class_name"))
@@ -278,7 +272,7 @@ class DistillationRunner(OnPolicyRunner):
         # load the teacher policy
         teacher_checkpoint_path = self.teacher_cfg.get("checkpoint_path", None)
         if teacher_checkpoint_path:
-            alg.load_teacher(teacher_checkpoint_path, map_location=self.device)
+            self.load_teacher(teacher_checkpoint_path, map_location=self.device)
         else:
             raise ValueError("Teacher checkpoint path is not provided in the configuration.")
 
@@ -316,3 +310,43 @@ class DistillationRunner(OnPolicyRunner):
             print(f"Missing keys: {missing_keys}")
         if unexpected_keys:
             print(f"Unexpected keys: {unexpected_keys}")
+    
+    def load_teacher(self, checkpoint_path: str, map_location: str | None = None):
+        """Load the teacher policy from a checkpoint."""
+        checkpoint = torch.load(checkpoint_path, map_location=map_location)
+        if "model_state_dict" not in checkpoint:
+            raise ValueError(f"Invalid checkpoint file: {checkpoint_path}. Missing 'model_state_dict'.")
+
+        load_result = self.teacher.load_state_dict(checkpoint["model_state_dict"], strict=False)
+        if hasattr(load_result, "missing_keys") and load_result.missing_keys:
+            print(f"[WARNING] Missing keys in teacher policy: {load_result.missing_keys}")
+        if hasattr(load_result, "unexpected_keys") and load_result.unexpected_keys:
+            print(f"[WARNING] Unexpected keys in teacher policy: {load_result.unexpected_keys}")
+
+        self.policy.loaded_teacher = True
+        print(f"[INFO] Teacher policy loaded successfully from {checkpoint_path}.")
+    
+
+    def _prepare_logging_writer(self):
+        """Prepares the logging writers."""
+        if self.log_dir is not None and self.writer is None and not self.disable_logs:
+            # Launch either Tensorboard or Neptune & Tensorboard summary writer(s), default: Tensorboard.
+            self.logger_type = self.cfg.get("logger", "tensorboard")
+            self.logger_type = self.logger_type.lower()
+
+            if self.logger_type == "neptune":
+                from rsl_rl.utils.neptune_utils import NeptuneSummaryWriter
+
+                self.writer = NeptuneSummaryWriter(log_dir=self.log_dir, flush_secs=10, cfg=self.cfg)
+                self.writer.log_config(self.env.cfg, self.cfg, self.alg_cfg, self.policy_cfg)
+            elif self.logger_type == "wandb":
+                from rma_utils.wandb_utils import WandbSummaryWriter
+
+                self.writer = WandbSummaryWriter(log_dir=self.log_dir, flush_secs=10, cfg=self.cfg)
+                self.writer.log_config(self.env.cfg, self.cfg, self.alg_cfg, self.policy_cfg)
+            elif self.logger_type == "tensorboard":
+                from torch.utils.tensorboard import SummaryWriter
+
+                self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
+            else:
+                raise ValueError("Logger type not found. Please choose 'neptune', 'wandb' or 'tensorboard'.")
