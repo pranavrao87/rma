@@ -157,30 +157,6 @@ class DistillationRunner(OnPolicyRunner):
         self.tot_timesteps += collection_size
         self.tot_time += locs["collection_time"] + locs["learn_time"]
         iteration_time = locs["collection_time"] + locs["learn_time"]
-
-        # -- Episode info
-        # ep_string = ""
-        # if locs["ep_infos"]:
-        #     for key in locs["ep_infos"][0]:
-        #         infotensor = torch.tensor([], device=self.device)
-        #         for ep_info in locs["ep_infos"]:
-        #             # handle scalar and zero dimensional tensor infos
-        #             if key not in ep_info:
-        #                 continue
-        #             if not isinstance(ep_info[key], torch.Tensor):
-        #                 ep_info[key] = torch.Tensor([ep_info[key]])
-        #             if len(ep_info[key].shape) == 0:
-        #                 ep_info[key] = ep_info[key].unsqueeze(0)
-        #             infotensor = torch.cat((infotensor, ep_info[key].to(self.device)))
-        #         value = torch.mean(infotensor)
-        #         # log to logger and terminal
-        #         if "/" in key:
-        #             self.writer.add_scalar(key, value, locs["it"])
-        #             ep_string += f"""{f'{key}:':>{pad}} {value:.4f}\n"""
-        #         else:
-        #             self.writer.add_scalar("Episode/" + key, value, locs["it"])
-        #             ep_string += f"""{f'Mean episode {key}:':>{pad}} {value:.4f}\n"""
-
         mean_std = self.alg.policy.action_std.mean()
         fps = int(collection_size / (locs["collection_time"] + locs["learn_time"]))
 
@@ -188,14 +164,6 @@ class DistillationRunner(OnPolicyRunner):
         for key, value in locs["loss_dict"].items():
             self.writer.add_scalar(f"Loss/{key}", value, locs["it"])
         self.writer.add_scalar("Loss/learning_rate", self.alg.learning_rate, locs["it"])
-
-        # -- Policy
-        self.writer.add_scalar("Policy/mean_noise_std", mean_std.item(), locs["it"])
-
-        # -- Performance
-        self.writer.add_scalar("Perf/total_fps", fps, locs["it"])
-        self.writer.add_scalar("Perf/collection time", locs["collection_time"], locs["it"])
-        self.writer.add_scalar("Perf/learning_time", locs["learn_time"], locs["it"])
 
         # callback for video logging
         if self.logger_type in ["wandb"]:
@@ -317,12 +285,7 @@ class DistillationRunner(OnPolicyRunner):
         if "model_state_dict" not in checkpoint:
             raise ValueError(f"Invalid checkpoint file: {checkpoint_path}. Missing 'model_state_dict'.")
 
-        load_result = self.teacher.load_state_dict(checkpoint["model_state_dict"], strict=False)
-        if hasattr(load_result, "missing_keys") and load_result.missing_keys:
-            print(f"[WARNING] Missing keys in teacher policy: {load_result.missing_keys}")
-        if hasattr(load_result, "unexpected_keys") and load_result.unexpected_keys:
-            print(f"[WARNING] Unexpected keys in teacher policy: {load_result.unexpected_keys}")
-
+        self.teacher.load_state_dict(checkpoint["model_state_dict"], strict=False)
         self.policy.loaded_teacher = True
         print(f"[INFO] Teacher policy loaded successfully from {checkpoint_path}.")
     
