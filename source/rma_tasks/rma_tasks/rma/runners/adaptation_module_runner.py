@@ -55,6 +55,19 @@ class DistillationRunner(OnPolicyRunner):
         self.current_learning_iteration = 0
         self.git_status_repos = [rsl_rl.__file__]
 
+    def train_mode(self):
+        """Set the policy to training mode, but keep teacher and actor frozen."""
+        self.alg.policy.train()
+        # Keep teacher in eval mode (frozen)
+        self.alg.teacher.eval()
+        # Keep actor in eval mode (we only train the encoder)
+        self.alg.policy.actor.eval()
+
+    def eval_mode(self):
+        """Set all models to evaluation mode."""
+        self.alg.policy.eval()
+        self.alg.teacher.eval()
+
     def learn(self, num_learning_iterations: int, init_at_random_ep_len: bool = False):  # noqa: C901
         # initialize writer
         self._prepare_logging_writer()
@@ -256,28 +269,34 @@ class DistillationRunner(OnPolicyRunner):
         return alg    
 
     def load_baseActor_policy(self, path: str, load_optimizer: bool = True, map_location: str | None = None):
+        """Load only the actor weights from a base policy checkpoint into the student policy.
+        
+        The encoder will be trained from scratch during distillation.
+        """
         loaded_dict = torch.load(path, weights_only=False, map_location=map_location)
         
-        # Create a new state dict with the correct keys for FlowMLP
-        model_state_dict = {}
-        
-        # Map student keys to FlowMLP keys
+        # Extract actor weights (removing "actor." prefix for loading into policy.actor)
+        actor_state_dict = {}
         for key, value in loaded_dict["model_state_dict"].items():
             if key.startswith("actor."):
-                # Remove the "actor." prefix
-                new_key = key[8:]  # Remove "student." (8 characters)
-                model_state_dict[new_key] = value
-            elif key == "std":
-                # Handle the std parameter if needed
-                model_state_dict[key] = value
+                # Remove the "actor." prefix to load into policy.actor
+                new_key = key[6:]  # "actor." is 6 characters
+                actor_state_dict[new_key] = value
         
-        # Load the mapped state dict
-        missing_keys, unexpected_keys = self.alg.policy.actor.load_state_dict(model_state_dict, strict=False)
+        # Load actor weights
+        missing_keys, unexpected_keys = self.alg.policy.actor.load_state_dict(actor_state_dict, strict=False)
         
         if missing_keys:
-            print(f"Missing keys: {missing_keys}")
+            print(f"[INFO] Actor missing keys (may be expected): {missing_keys}")
         if unexpected_keys:
-            print(f"Unexpected keys: {unexpected_keys}")
+            print(f"[WARNING] Actor unexpected keys: {unexpected_keys}")
+        
+        # Load std parameter if present (it's a top-level parameter, not inside actor)
+        if "std" in loaded_dict["model_state_dict"]:
+            self.alg.policy.std.data = loaded_dict["model_state_dict"]["std"]
+            print(f"[INFO] Loaded std parameter from base policy.")
+        
+        print(f"[INFO] Actor weights loaded from {path}. Encoder will be trained from scratch.")
     
     def load_teacher(self, checkpoint_path: str, map_location: str | None = None):
         """Load the teacher policy from a checkpoint."""

@@ -6,7 +6,6 @@
 import torch
 import torch.nn as nn
 
-from rsl_rl.modules import StudentTeacher, StudentTeacherRecurrent
 from rsl_rl.storage import RolloutStorage
 from rsl_rl.utils import resolve_optimizer
 
@@ -51,6 +50,11 @@ class Distillation:
         self.storage = None  # initialized later
         self.teacher = teacher
         self.teacher.to(self.device)
+        
+        # Freeze teacher weights - teacher should not be updated during distillation
+        self.teacher.eval()
+        for param in self.teacher.parameters():
+            param.requires_grad = False
 
         # initialize the optimizer for the encoder
         self.optimizer = resolve_optimizer(optimizer)(self.policy.encoder.parameters(), lr=learning_rate)
@@ -171,9 +175,11 @@ class Distillation:
             # self.policy.detach_hidden_states()
             for obs, _, privileged_actions, dones in self.storage.generator():
 
-                # inference the student for gradient computation
-                # comparing latents of student and teacher
-                teacher_latents = self.teacher.get_latents(obs)
+                # Get teacher latents (from privileged observations) - no gradients needed
+                with torch.no_grad():
+                    teacher_latents = self.teacher.get_latents(obs).detach()
+                
+                # Get student latents (from history observations) - gradients needed for training
                 student_latents = self.policy.get_latents(obs) 
 
                 # behavior cloning loss
@@ -190,7 +196,7 @@ class Distillation:
                 if self.is_multi_gpu:
                     self.reduce_parameters()
                 if self.max_grad_norm:
-                    nn.utils.clip_grad_norm_(self.policy.student.parameters(), self.max_grad_norm)
+                    nn.utils.clip_grad_norm_(self.policy.encoder.parameters(), self.max_grad_norm)
                 self.optimizer.step()
                 # self.policy.detach_hidden_states()
                 loss = 0
