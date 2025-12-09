@@ -46,7 +46,7 @@ class BasePolicy(nn.Module):
             assert len(obs[obs_group].shape) == 2, "The ActorCritic module only supports 1D observations."
             num_actor_obs += obs[obs_group].shape[-1]
         
-        # critic --> should this be the priv_obs?
+        # critic
         num_critic_obs = 0
         for obs_group in obs_groups["critic"]:
             assert len(obs[obs_group].shape) == 2, "The ActorCritic module only supports 1D observations."
